@@ -567,7 +567,11 @@ int64 USpatialActorChannel::ReplicateActor()
 
 	if (Actor->GetIsHiddenDirty())
 	{
-		NetDriver->RefreshActorVisibility(Actor, !Actor->IsHidden());
+		if (!Actor->GetRootComponent() || !Actor->GetRootComponent()->IsCollisionEnabled())
+		{
+			NetDriver->RefreshActorVisibility(Actor, !Actor->IsHidden());
+		}
+
 		Actor->SetIsHiddenDirty(false);
 	}
 
