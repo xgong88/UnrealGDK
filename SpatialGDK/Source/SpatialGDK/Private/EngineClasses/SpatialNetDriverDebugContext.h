@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "SpatialCommonTypes.h"
 #include "Schema/DebugComponent.h"
+#include "Schema/Interest.h"
 
 #include "SpatialNetDriverDebugContext.generated.h"
 
@@ -17,13 +18,19 @@ class USpatialNetDriverDebugContext : public UObject
 	GENERATED_BODY()
 public:
 
+	static void EnableDebugSpatialGDK(USpatialNetDriver* NetDriver);
+	static void DisableDebugSpatialGDK(USpatialNetDriver* NetDriver);
+
 	// Startup / Shutdown
 	void Init(USpatialNetDriver* NetDriver);
 	void Cleanup();
+	void Reset();
 
 	// Debug Interface
 	void AddActorTag(AActor* Actor, FName Tag);
+	void RemoveActorTag(AActor* Actor, FName Tag);
 	void AddInterestOnTag(FName Tag);
+	void RemoveInterestOnTag(FName Tag);
 	void KeepActorOnLocalWorker(AActor* Actor);
 	void DelegateTagToWorker(FName Tag, int32 WorkerId);
 	TOptional<VirtualWorkerId> GetActorHierarchyExplicitDelegation(const AActor* Actor);
@@ -36,20 +43,12 @@ public:
 	void OnDebugComponentUpdateReceived(Worker_EntityId);
 	void OnDebugComponentAuthLost(Worker_EntityId EntityId);
 
-	bool NeedEntityInterestUpdate()
-	{
-		return bNeedToUpdateInterest;
-	}
-
 	void ClearNeedEntityInterestUpdate()
 	{
 		bNeedToUpdateInterest = false;
 	}
 
-	TArray<Worker_EntityId_Key> GetAdditionalEntityInterest()
-	{
-		return CachedInterestSet.Array();
-	}
+	SpatialGDK::QueryConstraint ComputeAdditionalEntityQueryConstraint() const;
 
 	UPROPERTY()
 	UDebugLBStrategy* DebugStrategy = nullptr;
@@ -70,10 +69,16 @@ protected:
 	TOptional<VirtualWorkerId> GetActorHierarchyExplicitDelegation_Traverse(const AActor* Actor);
 
 	void AddEntityToWatch(Worker_EntityId);
+	void RemoveEntityToWatch(Worker_EntityId);
+
+	bool NeedEntityInterestUpdate()
+	{
+		return bNeedToUpdateInterest;
+	}
 
 	USpatialNetDriver* NetDriver;
 
-	// Collection of tag delegations.
+	// Collection of actor tag delegations.
 	TMap<FName, VirtualWorkerId> SemanticDelegations;
 
 	// Collection of actor tags we should get interest over.
@@ -82,8 +87,7 @@ protected:
 	// Debug info for actors
 	TMap<AActor*, DebugComponentView> ActorDebugInfo;
 
-	// Contains a cache of entities computed from the explicit actor interest and semantic interest.
+	// Contains a cache of entities computed from the semantic interest.
 	TSet<Worker_EntityId_Key> CachedInterestSet;
-
 	bool bNeedToUpdateInterest = false;
 };

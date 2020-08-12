@@ -999,6 +999,8 @@ void USpatialNetDriver::NotifyActorDestroyed(AActor* ThisActor, bool IsSeamlessT
 
 void USpatialNetDriver::Shutdown()
 {
+	USpatialNetDriverDebugContext::DisableDebugSpatialGDK(this);
+
 	if (!IsServer())
 	{
 		// Notify the server that we're disconnecting so it can clean up our actors.
@@ -2531,6 +2533,12 @@ void USpatialNetDriver::HandleStartupOpQueueing(TArray<SpatialGDK::OpList> InOpL
 
 		if (bIsReadyToStart)
 		{
+			ASpatialWorldSettings* WorldSettings = Cast<ASpatialWorldSettings>(GetWorld()->GetWorldSettings());
+			if (WorldSettings && WorldSettings->bEnableDebugInterface)
+			{
+				USpatialNetDriverDebugContext::EnableDebugSpatialGDK(this);
+			}
+
 			// Process levels which were loaded before the connection to Spatial was ready.
 			GetGameInstance()->CleanupCachedLevelsAfterConnection();
 

@@ -60,13 +60,20 @@ SpatialGDK::QueryConstraint UDebugLBStrategy::GetWorkerInterestQueryConstraint()
 {
 	check(WrappedStrategy);
 
-	//if (NetDriver->DebugCtx != nullptr)
-	//{
-	//	NetDriver->InterestFactory->AddExtraEntityInterestOnServer(ServerInterest, NetDriver->DebugCtx->GetAdditionalEntityInterest());
-	//	NetDriver->DebugCtx->ClearNeedEntityInterestUpdate();
-	//}
+	SpatialGDK::QueryConstraint DefaultConstraint = WrappedStrategy->GetWorkerInterestQueryConstraint();
+	SpatialGDK::QueryConstraint AdditionalConstraint = DebugCtx->ComputeAdditionalEntityQueryConstraint();
+	DebugCtx->ClearNeedEntityInterestUpdate();
 
-	return WrappedStrategy->GetWorkerInterestQueryConstraint();
+	if (AdditionalConstraint.IsValid())
+	{
+		SpatialGDK::QueryConstraint WorkerConstraint;
+		WorkerConstraint.OrConstraint.Add(DefaultConstraint);
+		WorkerConstraint.OrConstraint.Add(AdditionalConstraint);
+
+		return WorkerConstraint;
+	}
+
+	return DefaultConstraint;
 }
 
 FVector UDebugLBStrategy::GetWorkerEntityPosition() const

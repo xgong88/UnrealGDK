@@ -277,20 +277,6 @@ void InterestFactory::AddOwnerInterestOnServer(Interest& OutInterest, const AAct
 	}
 }
 
-void InterestFactory::AddExtraEntityInterestOnServer(Interest& OutInterest, const TArray<Worker_EntityId_Key>& Entities) const
-{
-	Query EntitiesQuery;
-	EntitiesQuery.ResultComponentIds = ServerNonAuthInterestResultType;
-	for (Worker_EntityId Entity : Entities)
-	{
-		QueryConstraint EntityQuery;
-		EntityQuery.EntityIdConstraint = Entity;
-		EntitiesQuery.Constraint.OrConstraint.Add(EntityQuery);
-	}
-
-	AddComponentQueryPairToInterestComponent(OutInterest, SpatialConstants::POSITION_COMPONENT_ID, EntitiesQuery);
-}
-
 void InterestFactory::AddAlwaysRelevantAndInterestedQuery(Interest& OutInterest, const AActor* InActor, const FClassInfo& InInfo,
 														  const QueryConstraint& LevelConstraint) const
 {

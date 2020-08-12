@@ -39,38 +39,6 @@ namespace
 	}
 }
 
-void USpatialGDKDebugInterface::EnableDebugSpatialGDK(UWorld* World)
-{
-	check(World);
-	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(World->GetNetDriver());
-	check(NetDriver);
-	
-	if (NetDriver->DebugCtx == nullptr)
-	{
-		if (!ensureMsgf(NetDriver->LoadBalanceStrategy, TEXT("Enabling SpatialGDKDebug too soon")))
-		{
-			return ;
-		}
-		NetDriver->DebugCtx = NewObject<USpatialNetDriverDebugContext>();
-		NetDriver->DebugCtx->Init(NetDriver);
-	}
-}
-
-void USpatialGDKDebugInterface::DisableDebugSpatialGDK(UWorld* World)
-{
-	if (!CheckDebuggingEnabled(World))
-	{
-		return;
-	}
-
-	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(World->GetNetDriver());
-	
-	if (NetDriver->DebugCtx != nullptr)
-	{
-		NetDriver->DebugCtx->Cleanup();
-	}
-}
-
 ULayeredLBStrategy* USpatialGDKDebugInterface::GetLoadBalancingStrategy(UWorld* World)
 {
 	if (World == nullptr || !CheckDebuggingEnabled(World))
@@ -104,6 +72,18 @@ void USpatialGDKDebugInterface::AddTag(AActor* Actor, FName Tag)
 	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(Actor->GetWorld()->GetNetDriver());
 
 	NetDriver->DebugCtx->AddActorTag(Actor, Tag);
+}
+
+void USpatialGDKDebugInterface::RemoveTag(AActor* Actor, FName Tag)
+{
+	if (Actor == nullptr || !CheckDebuggingEnabled(Actor))
+	{
+		return;
+	}
+
+	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(Actor->GetWorld()->GetNetDriver());
+
+	NetDriver->DebugCtx->RemoveActorTag(Actor, Tag);
 }
 
 void USpatialGDKDebugInterface::AddInterestOnTag(UObject* WorldContextObject, FName Tag)
@@ -153,4 +133,16 @@ void USpatialGDKDebugInterface::DelegateTagToWorker(UObject* WorldContextObject,
 
 	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(World->GetNetDriver());
 	NetDriver->DebugCtx->DelegateTagToWorker(Tag, WorkerId);
+}
+
+void USpatialGDKDebugInterface::Reset(UObject* WorldContextObject)
+{
+	UWorld* World = CheckDebuggingEnabled(WorldContextObject);
+	if (World == nullptr)
+	{
+		return;
+	}
+
+	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(World->GetNetDriver());
+	NetDriver->DebugCtx->Reset();
 }

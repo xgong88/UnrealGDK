@@ -16,27 +16,29 @@ class SPATIALGDK_API USpatialGDKDebugInterface : public UBlueprintFunctionLibrar
 
 public:
 
-	// Enables or disables the debug facilities on the provided world.
-	static void EnableDebugSpatialGDK(UWorld* World);
-	static void DisableDebugSpatialGDK(UWorld* World);
-
 	static ULayeredLBStrategy* GetLoadBalancingStrategy(UWorld* WorldContextObject);
 
-	UFUNCTION(BlueprintCallable, Category = "SpatialGDK")
+	UFUNCTION(BlueprintCallable, Category = "Spatial GDK Debug")
 	static void AddTag(AActor* Actor, FName Tag);
 
-	UFUNCTION(BlueprintCallable, Category = "SpatialGDK")
+	UFUNCTION(BlueprintCallable, Category = "Spatial GDK Debug")
+	static void RemoveTag(AActor* Actor, FName Tag);
+
+	UFUNCTION(BlueprintCallable, Category = "Spatial GDK Debug")
 	static bool IsActorReady(AActor* Actor);
 
-	UFUNCTION(BlueprintCallable, Category = "SpatialGDK", meta = (WorldContext = "WorldContextObject"))
+	UFUNCTION(BlueprintCallable, Category = "Spatial GDK Debug", meta = (WorldContext = "WorldContextObject"))
 	static void AddInterestOnTag(UObject* WorldContextObject, FName Tag);
 
-	UFUNCTION(BlueprintCallable, Category = "SpatialGDK", meta = (WorldContext = "WorldContextObject"))
+	UFUNCTION(BlueprintCallable, Category = "Spatial GDK Debug", meta = (WorldContext = "WorldContextObject"))
 	static void RemoveInterestOnTag(UObject* WorldContextObject, FName Tag);
 
-	UFUNCTION(BlueprintCallable, Category = "SpatialGDK")
+	UFUNCTION(BlueprintCallable, Category = "Spatial GDK Debug")
 	static void KeepActorOnCurrentWorker(AActor* Actor);
 
-	UFUNCTION(BlueprintCallable, Category = "SpatialGDK", meta = (WorldContext = "WorldContextObject"))
+	UFUNCTION(BlueprintCallable, Category = "Spatial GDK Debug", meta = (WorldContext = "WorldContextObject"))
 	static void DelegateTagToWorker(UObject* WorldContextObject, FName Tag, int32 WorkerId);
+
+	UFUNCTION(BlueprintCallable, Category = "Spatial GDK Debug", meta = (WorldContext = "WorldContextObject"))
+	static void Reset(UObject* WorldContextObject);
 };

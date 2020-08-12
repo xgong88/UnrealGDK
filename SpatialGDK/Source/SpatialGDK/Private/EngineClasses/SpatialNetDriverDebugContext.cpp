@@ -7,6 +7,49 @@
 #include "LoadBalancing/DebugLBStrategy.h"
 #include "Utils/SpatialActorUtils.h"
 
+namespace
+{
+	// Utility function, extracted from TSet<T>::Intersect
+	template <typename T>
+	bool IsSetIntersectionEmpty(const TSet<T>& Set1, const TSet<T>& Set2)
+	{
+		const bool b2Smaller = (Set1.Num() > Set2.Num());
+		const TSet<T>& A = (b2Smaller ? Set2 : Set1);
+		const TSet<T>& B = (b2Smaller ? Set1 : Set2);
+
+		for (auto SetIt = A.CreateConstIterator(); SetIt; ++SetIt)
+		{
+			if (B.Contains(*SetIt))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+}
+
+void USpatialNetDriverDebugContext::EnableDebugSpatialGDK(USpatialNetDriver* NetDriver)
+{
+	check(NetDriver);
+
+	if (NetDriver->DebugCtx == nullptr)
+	{
+		if (!ensureMsgf(NetDriver->LoadBalanceStrategy, TEXT("Enabling SpatialGDKDebug too soon")))
+		{
+			return;
+		}
+		NetDriver->DebugCtx = NewObject<USpatialNetDriverDebugContext>();
+		NetDriver->DebugCtx->Init(NetDriver);
+	}
+}
+
+void USpatialNetDriverDebugContext::DisableDebugSpatialGDK(USpatialNetDriver* NetDriver)
+{
+	if (NetDriver->DebugCtx != nullptr)
+	{
+		NetDriver->DebugCtx->Cleanup();
+	}
+}
 
 void USpatialNetDriverDebugContext::Init(USpatialNetDriver* InNetDriver)
 {
@@ -20,6 +63,14 @@ void USpatialNetDriverDebugContext::Init(USpatialNetDriver* InNetDriver)
 
 void USpatialNetDriverDebugContext::Cleanup()
 {
+	Reset();
+	NetDriver->LoadBalanceStrategy = Cast<UDebugLBStrategy>(DebugStrategy)->GetWrappedStrategy();
+	NetDriver->DebugCtx = nullptr;
+	NetDriver->Sender->UpdateServerWorkerEntityInterestAndPosition();
+}
+
+void USpatialNetDriverDebugContext::Reset()
+{
 	TArray<Worker_EntityId_Key> EntityIds;
 	NetDriver->StaticComponentView->GetEntityIds(EntityIds);
 
@@ -30,9 +81,10 @@ void USpatialNetDriverDebugContext::Cleanup()
 			NetDriver->Sender->SendRemoveComponents(Entity, { SpatialConstants::GDK_DEBUG_COMPONENT_ID });
 		}
 	}
+	SemanticInterest.Empty();
+	SemanticDelegations.Empty();
+	CachedInterestSet.Empty();
 
-	NetDriver->LoadBalanceStrategy = Cast<UDebugLBStrategy>(DebugStrategy)->GetWrappedStrategy();
-	NetDriver->DebugCtx = nullptr;
 	NetDriver->Sender->UpdateServerWorkerEntityInterestAndPosition();
 }
 
@@ -72,11 +124,29 @@ void USpatialNetDriverDebugContext::AddActorTag(AActor* Actor, FName Tag)
 	}
 }
 
+void USpatialNetDriverDebugContext::RemoveActorTag(AActor* Actor, FName Tag)
+{
+	if (Actor->HasAuthority())
+	{
+		DebugComponentView& Comp = GetDebugComponentView(Actor);
+		Comp.Component.ActorTags.Remove(Tag);
+		if (IsSetIntersectionEmpty(SemanticInterest, Comp.Component.ActorTags) && Comp.Entity != SpatialConstants::INVALID_ENTITY_ID)
+		{
+			RemoveEntityToWatch(Comp.Entity);
+		}
+		Comp.bUpdated = true;
+	}
+}
+
 void USpatialNetDriverDebugContext::OnDebugComponentUpdateReceived(Worker_EntityId Entity)
 {
 	SpatialGDK::DebugComponent* DbgComp = NetDriver->StaticComponentView->GetComponentData<SpatialGDK::DebugComponent>(Entity);
 	check(DbgComp);
-	if (DbgComp->ActorTags.Intersect(SemanticInterest).Num() > 0)
+	if (IsSetIntersectionEmpty(SemanticInterest, DbgComp->ActorTags))
+	{
+		RemoveEntityToWatch(Entity);
+	}
+	else
 	{
 		AddEntityToWatch(Entity);
 	}
@@ -99,6 +169,14 @@ void USpatialNetDriverDebugContext::AddEntityToWatch(Worker_EntityId Entity)
 	bool bAlreadyWatchingEntity = false;
 	CachedInterestSet.Add(Entity, &bAlreadyWatchingEntity);
 	bNeedToUpdateInterest |= !bAlreadyWatchingEntity;
+}
+
+void USpatialNetDriverDebugContext::RemoveEntityToWatch(Worker_EntityId Entity)
+{
+	if (CachedInterestSet.Remove(Entity) > 0)
+	{
+		bNeedToUpdateInterest = true;
+	}
 }
 
 void USpatialNetDriverDebugContext::AddInterestOnTag(FName Tag)
@@ -127,6 +205,44 @@ void USpatialNetDriverDebugContext::AddInterestOnTag(FName Tag)
 			if (!Item.Value.bAdded || Item.Value.bUpdated)
 			{
 				if (Item.Value.Component.ActorTags.Contains(Tag))
+				{
+					Worker_EntityId Entity = NetDriver->PackageMap->GetEntityIdFromObject(Item.Key);
+					if (Entity != SpatialConstants::INVALID_ENTITY_ID)
+					{
+						AddEntityToWatch(Entity);
+					}
+				}
+			}
+		}
+	}
+}
+
+void USpatialNetDriverDebugContext::RemoveInterestOnTag(FName Tag)
+{
+	if (SemanticInterest.Remove(Tag) > 0)
+	{
+		CachedInterestSet.Empty();
+		bNeedToUpdateInterest = true;
+
+		TArray<Worker_EntityId_Key> EntityIds;
+		NetDriver->StaticComponentView->GetEntityIds(EntityIds);
+
+		for (auto Entity : EntityIds)
+		{
+			if (SpatialGDK::DebugComponent* DbgComp = NetDriver->StaticComponentView->GetComponentData<SpatialGDK::DebugComponent>(Entity))
+			{
+				if (!IsSetIntersectionEmpty(DbgComp->ActorTags, SemanticInterest))
+				{
+					AddEntityToWatch(Entity);
+				}
+			}
+		}
+
+		for (const auto& Item : ActorDebugInfo)
+		{
+			if (!Item.Value.bAdded || Item.Value.bUpdated)
+			{
+				if (!IsSetIntersectionEmpty(Item.Value.Component.ActorTags, SemanticInterest))
 				{
 					Worker_EntityId Entity = NetDriver->PackageMap->GetEntityIdFromObject(Item.Key);
 					if (Entity != SpatialConstants::INVALID_ENTITY_ID)
@@ -213,9 +329,9 @@ TOptional<VirtualWorkerId> USpatialNetDriverDebugContext::GetActorExplicitDelega
 	{
 		if (VirtualWorkerId* Worker = SemanticDelegations.Find(Tag))
 		{
-			ensureMsgf(!CandidateDelegation.IsSet() || *CandidateDelegation == *Worker,
+			ensureMsgf(!CandidateDelegation.IsSet() || CandidateDelegation.GetValue() == *Worker,
 				TEXT("Inconsistent delegation. Actor %s delegated to both %i and %i"),
-				*Actor->GetName(), *CandidateDelegation, *Worker);
+				*Actor->GetName(), CandidateDelegation.GetValue(), *Worker);
 			CandidateDelegation = *Worker;
 		}
 	}
@@ -232,7 +348,7 @@ void USpatialNetDriverDebugContext::TickServer()
 			Worker_EntityId Entity = NetDriver->PackageMap->GetEntityIdFromObject(Entry.Key);
 			if (Entity != SpatialConstants::INVALID_ENTITY_ID)
 			{
-				if (Entry.Value.Component.ActorTags.Intersect(SemanticInterest).Num() > 0)
+				if (!IsSetIntersectionEmpty(Entry.Value.Component.ActorTags, SemanticInterest))
 				{
 					AddEntityToWatch(Entity);
 				}
@@ -269,4 +385,17 @@ bool USpatialNetDriverDebugContext::IsActorReady(AActor* Actor)
 		return NetDriver->StaticComponentView->HasAuthority(Entity, SpatialConstants::POSITION_COMPONENT_ID);
 	}
 	return false;
+}
+
+SpatialGDK::QueryConstraint USpatialNetDriverDebugContext::ComputeAdditionalEntityQueryConstraint() const
+{
+	SpatialGDK::QueryConstraint EntitiesConstraint;
+	for (Worker_EntityId Entity : CachedInterestSet)
+	{
+		SpatialGDK::QueryConstraint EntityQuery;
+		EntityQuery.EntityIdConstraint = Entity;
+		EntitiesConstraint.OrConstraint.Add(EntityQuery);
+	}
+
+	return EntitiesConstraint;
 }

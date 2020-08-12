@@ -414,12 +414,6 @@ void USpatialSender::UpdateServerWorkerEntityInterestAndPosition()
 
 	// Update the interest. If it's ready and not null, also adds interest according to the load balancing strategy.
 	Interest ServerInterest = NetDriver->InterestFactory->CreateServerWorkerInterest(NetDriver->LoadBalanceStrategy, NetDriver->DebugCtx != nullptr /*bDebug*/);
-	if (NetDriver->DebugCtx != nullptr)
-	{
-		NetDriver->InterestFactory->AddExtraEntityInterestOnServer(ServerInterest, NetDriver->DebugCtx->GetAdditionalEntityInterest());
-		NetDriver->DebugCtx->ClearNeedEntityInterestUpdate();
-	}
-
 	FWorkerComponentUpdate InterestUpdate = ServerInterest.CreateInterestUpdate();
 
 	Connection->SendComponentUpdate(NetDriver->WorkerEntityId, &InterestUpdate);

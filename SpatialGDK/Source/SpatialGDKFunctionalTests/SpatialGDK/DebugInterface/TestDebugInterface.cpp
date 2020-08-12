@@ -38,8 +38,6 @@ void ATestDebugInterface::BeginPlay()
 		Test->Workers.Empty();
 		Test->bIsOnDefaultLayer = false;
 
-		USpatialGDKDebugInterface::EnableDebugSpatialGDK(World);
-
 		ULayeredLBStrategy* RootStrategy = USpatialGDKDebugInterface::GetLoadBalancingStrategy(World);
 
 		Test->bIsOnDefaultLayer = RootStrategy->CouldHaveAuthority(AReplicatedTestActorBase::StaticClass());
@@ -171,7 +169,7 @@ void ATestDebugInterface::BeginPlay()
 
 				Test->FinishStep();
 			}
-		}, 10.0f);
+		}, 5.0f);
 
 	AddStep(TEXT("Check new actors interest and delegation"), FWorkerDefinition::AllServers,
 		[](ASpatialFunctionalTest* NetTest) -> bool
@@ -209,11 +207,10 @@ void ATestDebugInterface::BeginPlay()
 
 			if (bConsistentResult)
 			{
-				//USpatialGDKDebugInterface::DisableDebugSpatialGDK(Test->GetWorld());
 				Test->FinishStep();
 			}
 		}
-	}, 10.0f);
+	}, 5.0f);
 
 	AddStep(TEXT("Shutdown debugging"), FWorkerDefinition::AllServers, nullptr,
 		[](ASpatialFunctionalTest* NetTest)
@@ -221,11 +218,13 @@ void ATestDebugInterface::BeginPlay()
 		ATestDebugInterface* Test = Cast<ATestDebugInterface>(NetTest);
 		if (Test->bIsOnDefaultLayer)
 		{
-			USpatialGDKDebugInterface::DisableDebugSpatialGDK(Test->GetWorld());
+			USpatialGDKDebugInterface::Reset(Test->GetWorld());
 			Test->FinishStep();
 		}
 	}, nullptr);
 
+// Disabling step until UNR-3929 is fixed.
+#if 0
 	AddStep(TEXT("Check state after debug shutdow"), FWorkerDefinition::AllServers, [](ASpatialFunctionalTest* NetTest) -> bool
 	{
 		ATestDebugInterface* Test = Cast<ATestDebugInterface>(NetTest);
@@ -270,5 +269,6 @@ void ATestDebugInterface::BeginPlay()
 				Test->FinishStep();
 			}
 		}
-	}, 10.0f);
+	}, 5.0f);
+#endif
 }
