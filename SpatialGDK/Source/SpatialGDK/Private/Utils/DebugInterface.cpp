@@ -109,7 +109,7 @@ void USpatialGDKDebugInterface::RemoveInterestOnTag(UObject* WorldContextObject,
 
 	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(World->GetNetDriver());
 
-	//NetDriver->DebugCtx->AddActorTag(Actor, Tag);
+	NetDriver->DebugCtx->RemoveInterestOnTag(Tag);
 }
 
 void USpatialGDKDebugInterface::KeepActorOnCurrentWorker(AActor* Actor)

@@ -10,6 +10,13 @@
 #include "SpatialGDKFunctionalTests/SpatialGDK/TestActors/ReplicatedTestActorBase.h"
 #include "Kismet/GameplayStatics.h"
 
+
+/*
+Test for coverage of the USpatialGDKDebugInterface.
+
+
+*/
+
 ATestDebugInterface::ATestDebugInterface()
 	: Super()
 {
@@ -26,249 +33,362 @@ namespace
 	}
 }
 
+bool ATestDebugInterface::WaitToSeeActors(UClass* ActorClass, int32 NumActors)
+{
+	if (bIsOnDefaultLayer)
+	{
+		UWorld* World = GetWorld();
+
+		TArray<AActor*> TestActors;
+		UGameplayStatics::GetAllActorsOfClass(World, ActorClass, TestActors);
+		if (TestActors.Num() != NumActors)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 void ATestDebugInterface::BeginPlay()
 {
 	Super::BeginPlay();
 
-	AddStep(TEXT("SetupStep"), FWorkerDefinition::AllServers, nullptr, nullptr, [](ASpatialFunctionalTest* NetTest, float DeltaTime)
+	AddStep(TEXT("SetupStep"), FWorkerDefinition::AllServers, nullptr, nullptr, [this](float DeltaTime)
 	{
-		ATestDebugInterface* Test = Cast<ATestDebugInterface>(NetTest);
-		UWorld* World = Test->GetWorld();
-		Test->DelegationStep = 0;
-		Test->Workers.Empty();
-		Test->bIsOnDefaultLayer = false;
+		UWorld* World = GetWorld();
+		DelegationStep = 0;
+		Workers.Empty();
+		bIsOnDefaultLayer = false;
 
 		ULayeredLBStrategy* RootStrategy = USpatialGDKDebugInterface::GetLoadBalancingStrategy(World);
 
-		Test->bIsOnDefaultLayer = RootStrategy->CouldHaveAuthority(AReplicatedTestActorBase::StaticClass());
-		if (Test->bIsOnDefaultLayer)
+		bIsOnDefaultLayer = RootStrategy->CouldHaveAuthority(AReplicatedTestActorBase::StaticClass());
+		if (bIsOnDefaultLayer)
 		{
 			FName LocalLayer = RootStrategy->GetLocalLayerName();
 			UAbstractLBStrategy* LocalStrategy = RootStrategy->GetLBStrategyForLayer(LocalLayer);
 
-			Test->AssertTrue(LocalStrategy->IsA<UGridBasedLBStrategy>(), TEXT(""));
+			AssertTrue(LocalStrategy->IsA<UGridBasedLBStrategy>(), TEXT(""));
 
 			UGridBasedLBStrategy* GridStrategy = Cast<UGridBasedLBStrategy>(LocalStrategy);
 
 			for (auto& WorkerRegion : GridStrategy->GetLBStrategyRegions())
 			{
-				Test->Workers.Add(WorkerRegion.Key);
+				Workers.Add(WorkerRegion.Key);
 			}
-			Test->LocalWorker = GridStrategy->GetLocalVirtualWorkerId();
+			LocalWorker = GridStrategy->GetLocalVirtualWorkerId();
 
-			Test->WorkerEntityPosition = GridStrategy->GetWorkerEntityPosition();
-			AReplicatedTestActorBase* Actor = World->SpawnActor<AReplicatedTestActorBase>(Test->WorkerEntityPosition, FRotator());
+			WorkerEntityPosition = GridStrategy->GetWorkerEntityPosition();
+			AReplicatedTestActorBase* Actor = World->SpawnActor<AReplicatedTestActorBase>(WorkerEntityPosition, FRotator());
 			USpatialGDKDebugInterface::AddTag(Actor, GetTestTag());
-			Test->RegisterAutoDestroyActor(Actor);
+			RegisterAutoDestroyActor(Actor);
 		}
 
-		Test->FinishStep();
+		FinishStep();
 	});
 
 	AddStep(TEXT("Wait for actor ready and add extra interest"), FWorkerDefinition::AllServers,
-		[](ASpatialFunctionalTest* NetTest) -> bool
+		[this]() -> bool
 		{
-			ATestDebugInterface* Test = Cast<ATestDebugInterface>(NetTest);
-			if (!Test->bIsOnDefaultLayer)
+			if (!bIsOnDefaultLayer)
 			{
 				return true;
 			}
-			UWorld* World = Test->GetWorld();
+
+			UWorld* World = GetWorld();
 
 			TArray<AActor*> TestActors;
 			UGameplayStatics::GetAllActorsOfClass(World, AReplicatedTestActorBase::StaticClass(), TestActors);
-			if (!Test->AssertTrue(TestActors.Num() == 1, "We should only see a single actor at this point!!"))
+			if (!AssertTrue(TestActors.Num() == 1, "We should only see a single actor at this point!!"))
 			{
 				return false;
 			}
 			return USpatialGDKDebugInterface::IsActorReady(TestActors[0]);
 		},
-		[](ASpatialFunctionalTest* NetTest)
+		[this]()
 		{
-			ATestDebugInterface* Test = Cast<ATestDebugInterface>(NetTest);
-			if (Test->bIsOnDefaultLayer)
+			if (!bIsOnDefaultLayer)
 			{
-				USpatialGDKDebugInterface::AddInterestOnTag(Test, GetTestTag());
+				FinishStep();
 			}
 
-			Test->FinishStep();
+			USpatialGDKDebugInterface::AddInterestOnTag(this, GetTestTag());
+			FinishStep();
 		}, nullptr, 5.0f);
 
 	AddStep(TEXT("Wait for extra actors"), FWorkerDefinition::AllServers,
-		[](ASpatialFunctionalTest* NetTest) -> bool
+		[this]() -> bool
 		{
-			ATestDebugInterface* Test = Cast<ATestDebugInterface>(NetTest);
-			if (Test->bIsOnDefaultLayer)
-			{
-				UWorld* World = Test->GetWorld();
-
-				TArray<AActor*> TestActors;
-				UGameplayStatics::GetAllActorsOfClass(World, AReplicatedTestActorBase::StaticClass(), TestActors);
-				if (TestActors.Num() == 1)
-				{
-					return false;
-				}
-			}
-			return true;
+			return WaitToSeeActors(AReplicatedTestActorBase::StaticClass(), Workers.Num());
 		},
-		[](ASpatialFunctionalTest* NetTest)
+		[this]()
 		{
-			ATestDebugInterface* Test = Cast<ATestDebugInterface>(NetTest);
-			if (Test->bIsOnDefaultLayer)
+			if (!bIsOnDefaultLayer)
 			{
-				UWorld* World = Test->GetWorld();
-
-				TArray<AActor*> TestActors;
-				UGameplayStatics::GetAllActorsOfClass(World, AReplicatedTestActorBase::StaticClass(), TestActors);
-
-				Test->AssertTrue(TestActors.Num() == Test->Workers.Num(), TEXT("Not the expected number of actors"));
+				FinishStep();
 			}
-
-			Test->FinishStep();
-		}, nullptr, 5.0f);
-
-	AddStep(TEXT("Force actor delegation"), FWorkerDefinition::AllServers, nullptr, nullptr,
-		[](ASpatialFunctionalTest* NetTest, float DeltaTime)
-		{
-			ATestDebugInterface* Test = Cast<ATestDebugInterface>(NetTest);
-			if (Test->bIsOnDefaultLayer)
-			{
-				int32 CurWorker = Test->DelegationStep / 2;
-				int32 WorkerSubStep = Test->DelegationStep % 2;
-				switch (WorkerSubStep)
-				{
-				case 0:
-					USpatialGDKDebugInterface::DelegateTagToWorker(Test, GetTestTag(), Test->Workers[CurWorker]);
-					++Test->DelegationStep;
-					break;
-				case 1:
-					bool bExpectedAuth = Test->Workers[CurWorker] == Test->LocalWorker;
-					bool bConsistentResult = true;
-
-					TArray<AActor*> TestActors;
-					UGameplayStatics::GetAllActorsOfClass(Test->GetWorld(), AReplicatedTestActorBase::StaticClass(), TestActors);
-					for (AActor* Actor : TestActors)
-					{
-						bConsistentResult &= Actor->HasAuthority() == bExpectedAuth;
-					}
-
-					if (bConsistentResult)
-					{
-						++Test->DelegationStep;
-					}
-					break;
-				}
-			}
-			if (Test->DelegationStep >= Test->Workers.Num() * 2)
-			{
-				UWorld* World = Test->GetWorld();
-				
-				AReplicatedTestActorBase* Actor = World->SpawnActor<AReplicatedTestActorBase>(Test->WorkerEntityPosition, FRotator());
-				USpatialGDKDebugInterface::AddTag(Actor, GetTestTag());
-				Test->RegisterAutoDestroyActor(Actor);
-
-				Test->FinishStep();
-			}
-		}, 5.0f);
-
-	AddStep(TEXT("Check new actors interest and delegation"), FWorkerDefinition::AllServers,
-		[](ASpatialFunctionalTest* NetTest) -> bool
-		{
-			ATestDebugInterface* Test = Cast<ATestDebugInterface>(NetTest);
-			if (Test->bIsOnDefaultLayer)
-			{
-				UWorld* World = Test->GetWorld();
-
-				TArray<AActor*> TestActors;
-				UGameplayStatics::GetAllActorsOfClass(World, AReplicatedTestActorBase::StaticClass(), TestActors);
-				if (TestActors.Num() != Test->Workers.Num() * 2)
-				{
-					return false;
-				}
-			}
-			return true;
-		}, nullptr,
-		[](ASpatialFunctionalTest* NetTest, float DeltaTime)
-	{
-		ATestDebugInterface* Test = Cast<ATestDebugInterface>(NetTest);
-		if (Test->bIsOnDefaultLayer)
-		{
-			int32_t CurWorker = Test->Workers.Num() - 1;
-
-			bool bExpectedAuth = Test->Workers[CurWorker] == Test->LocalWorker;
-			bool bConsistentResult = true;
-
-			TArray<AActor*> TestActors;
-			UGameplayStatics::GetAllActorsOfClass(Test->GetWorld(), AReplicatedTestActorBase::StaticClass(), TestActors);
-			for (AActor* Actor : TestActors)
-			{
-				bConsistentResult &= Actor->HasAuthority() == bExpectedAuth;
-			}
-
-			if (bConsistentResult)
-			{
-				Test->FinishStep();
-			}
-		}
-	}, 5.0f);
-
-	AddStep(TEXT("Shutdown debugging"), FWorkerDefinition::AllServers, nullptr,
-		[](ASpatialFunctionalTest* NetTest)
-	{
-		ATestDebugInterface* Test = Cast<ATestDebugInterface>(NetTest);
-		if (Test->bIsOnDefaultLayer)
-		{
-			USpatialGDKDebugInterface::Reset(Test->GetWorld());
-			Test->FinishStep();
-		}
-	}, nullptr);
-
-// Disabling step until UNR-3929 is fixed.
-#if 0
-	AddStep(TEXT("Check state after debug shutdow"), FWorkerDefinition::AllServers, [](ASpatialFunctionalTest* NetTest) -> bool
-	{
-		ATestDebugInterface* Test = Cast<ATestDebugInterface>(NetTest);
-		if (Test->bIsOnDefaultLayer)
-		{
-			UWorld* World = Test->GetWorld();
+			UWorld* World = GetWorld();
 
 			TArray<AActor*> TestActors;
 			UGameplayStatics::GetAllActorsOfClass(World, AReplicatedTestActorBase::StaticClass(), TestActors);
 
+			AssertTrue(TestActors.Num() == Workers.Num(), TEXT("Not the expected number of actors"));
+
+			FinishStep();
+		}, nullptr, 5.0f);
+
+	AddStep(TEXT("Force actor delegation"), FWorkerDefinition::AllServers, nullptr, nullptr,
+		[this](float DeltaTime)
+		{
+			if (!bIsOnDefaultLayer)
+			{
+				FinishStep();
+			}
+			int32 CurAuthWorker = DelegationStep / 2;
+			int32 WorkerSubStep = DelegationStep % 2;
+			switch (WorkerSubStep)
+			{
+			case 0:
+				USpatialGDKDebugInterface::DelegateTagToWorker(this, GetTestTag(), Workers[CurAuthWorker]);
+				++DelegationStep;
+				break;
+			case 1:
+				bool bExpectedAuth = Workers[CurAuthWorker] == LocalWorker;
+				bool bExpectedResult = true;
+
+				TArray<AActor*> TestActors;
+				UGameplayStatics::GetAllActorsOfClass(GetWorld(), AReplicatedTestActorBase::StaticClass(), TestActors);
+				for (AActor* Actor : TestActors)
+				{
+					bExpectedResult &= Actor->HasAuthority() == bExpectedAuth;
+				}
+
+				if (bExpectedResult)
+				{
+					++DelegationStep;
+				}
+				break;
+			}
+
+			if (DelegationStep >= Workers.Num() * 2)
+			{
+				UWorld* World = GetWorld();
+				
+				AReplicatedTestActorBase* Actor = World->SpawnActor<AReplicatedTestActorBase>(WorkerEntityPosition, FRotator());
+				USpatialGDKDebugInterface::AddTag(Actor, GetTestTag());
+				RegisterAutoDestroyActor(Actor);
+
+				FinishStep();
+			}
+		}, 5.0f);
+
+	AddStep(TEXT("Check new actors interest and delegation"), FWorkerDefinition::AllServers,
+		[this]() -> bool
+		{
+			return WaitToSeeActors(AReplicatedTestActorBase::StaticClass(), Workers.Num() * 2);
+		},
+		nullptr,
+		[this](float DeltaTime)
+		{
+			if (!bIsOnDefaultLayer)
+			{
+				FinishStep();
+			}
+			int32_t CurAuthWorker = Workers.Num() - 1;
+
+			bool bExpectedAuth = Workers[CurAuthWorker] == LocalWorker;
+			bool bExpectedResult = true;
+
+			TArray<AActor*> TestActors;
+			UGameplayStatics::GetAllActorsOfClass(GetWorld(), AReplicatedTestActorBase::StaticClass(), TestActors);
 			for (AActor* Actor : TestActors)
 			{
-				if (Actor->IsPendingKill() || Actor->IsActorBeingDestroyed() || Actor->IsPendingKillOrUnreachable() || Actor->IsPendingKillPending())
+				bExpectedResult &= Actor->HasAuthority() == bExpectedAuth;
+			}
+
+			if (bExpectedResult)
+			{
+				FinishStep();
+			}
+		}, 5.0f);
+
+	AddStep(TEXT("Remove extra interest"), FWorkerDefinition::AllServers, nullptr,
+		[this]()
+		{
+			if (!bIsOnDefaultLayer)
+			{
+				FinishStep();
+			}
+
+			USpatialGDKDebugInterface::RemoveInterestOnTag(this, GetTestTag());
+			FinishStep();
+		}, nullptr);
+
+	AddStep(TEXT("Check extra interest removed"), FWorkerDefinition::AllServers,
+		[this]
+		{
+			int32_t CurAuthWorker = Workers.Num() - 1;
+			bool bExpectedAuth = Workers[CurAuthWorker] == LocalWorker;
+			return WaitToSeeActors(AReplicatedTestActorBase::StaticClass(), bExpectedAuth ? Workers.Num() * 2 : 2);
+		},
+		[this]
+		{
+			FinishStep();
+		}, nullptr, 500.0f);
+
+	AddStep(TEXT("Add extra interest again"), FWorkerDefinition::AllServers, nullptr,
+		[this]()
+		{
+			if (!bIsOnDefaultLayer)
+			{
+				FinishStep();
+			}
+			USpatialGDKDebugInterface::AddInterestOnTag(this, GetTestTag());
+			FinishStep();
+		}, nullptr, 5.0f);
+
+	AddStep(TEXT("Remove actor tags"), FWorkerDefinition::AllServers,
+		[this]
+		{
+			return WaitToSeeActors(AReplicatedTestActorBase::StaticClass(), Workers.Num() * 2);
+		},
+		[this]
+		{
+			if (!bIsOnDefaultLayer)
+			{
+				FinishStep();
+			}
+
+			TArray<AActor*> TestActors;
+			UGameplayStatics::GetAllActorsOfClass(GetWorld(), AReplicatedTestActorBase::StaticClass(), TestActors);
+			for (AActor* Actor : TestActors)
+			{
+				if (Actor->HasAuthority())
 				{
-					check(false);
+					USpatialGDKDebugInterface::RemoveTag(Actor, GetTestTag());
 				}
 			}
 
-			if (TestActors.Num() != 2)
-			{
-				return false;
-			}
-		}
-		return true;
-	}, nullptr,
-		[](ASpatialFunctionalTest* NetTest, float DeltaTime)
-	{
-		ATestDebugInterface* Test = Cast<ATestDebugInterface>(NetTest);
-		if (Test->bIsOnDefaultLayer)
+			FinishStep();
+		}, nullptr, 5.0f);
+
+	AddStep(TEXT("Check state after tags removed"), FWorkerDefinition::AllServers,
+		[this]() -> bool
 		{
-			bool bConsistentResult = true;
+			return WaitToSeeActors(AReplicatedTestActorBase::StaticClass(), 2);
+		},
+		nullptr,
+		[this](float DeltaTime)
+		{
+			if (!bIsOnDefaultLayer)
+			{
+				FinishStep();
+			}
+
+			bool bExpectedResult = true;
 
 			TArray<AActor*> TestActors;
-			UGameplayStatics::GetAllActorsOfClass(Test->GetWorld(), AReplicatedTestActorBase::StaticClass(), TestActors);
+			UGameplayStatics::GetAllActorsOfClass(GetWorld(), AReplicatedTestActorBase::StaticClass(), TestActors);
 			for (AActor* Actor : TestActors)
 			{
-				bConsistentResult &= Actor->HasAuthority();
+				bExpectedResult &= Actor->HasAuthority();
 			}
 
-			if (bConsistentResult)
+			if (bExpectedResult)
 			{
-				Test->FinishStep();
+				FinishStep();
+			}
+			
+		}, 500.0f);
+
+	AddStep(TEXT("Add tag and remove delegation"), FWorkerDefinition::AllServers, nullptr,
+		[this]()
+		{
+
+			if (!bIsOnDefaultLayer)
+			{
+				FinishStep();
+			}
+			bool bExpectedResult = true;
+
+			TArray<AActor*> TestActors;
+			UGameplayStatics::GetAllActorsOfClass(GetWorld(), AReplicatedTestActorBase::StaticClass(), TestActors);
+			for (AActor* Actor : TestActors)
+			{
+				if (Actor->HasAuthority())
+				{
+					USpatialGDKDebugInterface::AddTag(Actor, GetTestTag());
+				}
+			}
+
+			USpatialGDKDebugInterface::DelegateTagToWorker(this, GetTestTag(), -1);
+			FinishStep();
+
+		}, nullptr, 5.0f);
+
+	AddStep(TEXT("Check state after delegation removal"), FWorkerDefinition::AllServers,
+		[this]
+		{
+			return WaitToSeeActors(AReplicatedTestActorBase::StaticClass(), Workers.Num() * 2);
+		},
+		[this]()
+		{
+			if (!bIsOnDefaultLayer)
+			{
+				FinishStep();
+			}
+
+			bool bExpectedResult = true;
+			TArray<AActor*> TestActors;
+			UGameplayStatics::GetAllActorsOfClass(GetWorld(), AReplicatedTestActorBase::StaticClass(), TestActors);
+			for (AActor* Actor : TestActors)
+			{
+				bExpectedResult &= (Actor->HasAuthority() == WorkerEntityPosition.Equals(Actor->GetActorLocation()));
+			}
+
+			if (bExpectedResult)
+			{
+				FinishStep();
+			}
+
+		}, nullptr, 5.0f);
+
+	AddStep(TEXT("Shutdown debugging"), FWorkerDefinition::AllServers, nullptr,
+		[this]()
+		{
+			if (bIsOnDefaultLayer)
+			{
+				USpatialGDKDebugInterface::Reset(GetWorld());
+				FinishStep();
+			}
+		}, nullptr, 5.0f);
+
+	AddStep(TEXT("Check state after debug reset"), FWorkerDefinition::AllServers,
+		[this]() -> bool
+		{
+			return WaitToSeeActors(AReplicatedTestActorBase::StaticClass(), 2);
+		},
+		nullptr,
+		[this](float DeltaTime)
+		{
+			if (!bIsOnDefaultLayer)
+			{
+				FinishStep();
+			}
+
+			bool bExpectedResult = true;
+
+			TArray<AActor*> TestActors;
+			UGameplayStatics::GetAllActorsOfClass(GetWorld(), AReplicatedTestActorBase::StaticClass(), TestActors);
+			for (AActor* Actor : TestActors)
+			{
+				bExpectedResult &= Actor->HasAuthority();
+			}
+
+			if (bExpectedResult)
+			{
+				FinishStep();
 			}
 		}
-	}, 5.0f);
-#endif
+		, 5.0f);
 }

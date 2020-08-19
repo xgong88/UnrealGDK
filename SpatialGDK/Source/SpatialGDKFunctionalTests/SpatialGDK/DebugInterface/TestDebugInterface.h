@@ -18,6 +18,8 @@ public:
 
 protected:
 
+	bool WaitToSeeActors(UClass* ActorClass, int32 NumActors);
+
 	TArray<VirtualWorkerId> Workers;
 	VirtualWorkerId LocalWorker;
 	FVector WorkerEntityPosition;
