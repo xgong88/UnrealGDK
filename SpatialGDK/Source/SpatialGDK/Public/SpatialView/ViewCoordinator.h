@@ -2,6 +2,8 @@
 
 #pragma once
 
+//#include "SpatialView/CommandRetryHandlerImpl.h"
+#include "SpatialView/CommandRetryHandler.h"
 #include "SpatialView/ConnectionHandler/AbstractConnectionHandler.h"
 #include "SpatialView/WorkerView.h"
 #include "Templates/UniquePtr.h"
@@ -21,7 +23,7 @@ public:
 	ViewCoordinator& operator=(const ViewCoordinator&) = delete;
 	ViewCoordinator& operator=(ViewCoordinator&&) = delete;
 
-	void Advance();
+	void Advance(float DeltaTimeS);
 	const ViewDelta& GetViewDelta();
 	const EntityView& GetView();
 	void FlushMessagesToSend();
@@ -43,10 +45,23 @@ public:
 	void SendMetrics(SpatialMetrics Metrics);
 	void SendLogMessage(Worker_LogLevel Level, const FName& LoggerName, FString Message);
 
+	Worker_RequestId SendReserveEntityIdsRequest(uint32 NumberOfEntityIds, FRetryData RetryData);
+	Worker_RequestId SendCreateEntityRequest(TArray<ComponentData> EntityComponents, TOptional<Worker_EntityId> EntityId,
+											 FRetryData RetryData);
+	Worker_RequestId SendDeleteEntityRequest(Worker_EntityId EntityId, FRetryData RetryData);
+	Worker_RequestId SendEntityQueryRequest(EntityQuery Query, FRetryData RetryData);
+	Worker_RequestId SendEntityCommandRequest(Worker_EntityId EntityId, CommandRequest Request, FRetryData RetryData);
+
 private:
 	WorkerView View;
 	TUniquePtr<AbstractConnectionHandler> ConnectionHandler;
 	Worker_RequestId NextRequestId;
+
+	FReserveEntityIdsRetryHandler ReserveEntityIdRetryHandler;
+	FCreateEntityRetryHandler CreateEntityRetryHandler;
+	FDeleteEntityRetryHandler DeleteEntityRetryHandler;
+	FEntityQueryRetryHandler EntityQueryRetryHandler;
+	FEntityCommandRetryHandler EntityCommandRetryHandler;
 };
 
 } // namespace SpatialGDK
