@@ -172,6 +172,9 @@ void USpatialStaticComponentView::OnComponentUpdate(const Worker_ComponentUpdate
 	case SpatialConstants::NET_OWNING_CLIENT_WORKER_COMPONENT_ID:
 		Component = GetComponentData<SpatialGDK::NetOwningClientWorker>(Op.entity_id);
 		break;
+	case SpatialConstants::GDK_DEBUG_COMPONENT_ID:
+		Component = GetComponentData<SpatialGDK::DebugComponent>(Op.entity_id);
+		break;
 	default:
 		return;
 	}

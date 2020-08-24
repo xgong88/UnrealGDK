@@ -108,7 +108,7 @@ void USpatialReceiver::LeaveCriticalSection()
 			OnEntityAddedDelegate.Broadcast(PendingAddEntity);
 		}
 		PendingAddComponents.RemoveAll([PendingAddEntity](const PendingAddComponentWrapper& Component) {
-			return Component.EntityId == PendingAddEntity;
+			return Component.EntityId == PendingAddEntity && Component.ComponentId != SpatialConstants::GDK_DEBUG_COMPONENT_ID;
 		});
 	}
 
@@ -131,6 +131,16 @@ void USpatialReceiver::LeaveCriticalSection()
 		{
 			continue;
 		}
+
+		if (PendingAddComponent.ComponentId == SpatialConstants::GDK_DEBUG_COMPONENT_ID)
+		{
+			if (NetDriver->DebugCtx)
+			{
+				NetDriver->DebugCtx->OnDebugComponentUpdateReceived(PendingAddComponent.EntityId);
+			}
+			continue;
+		}
+
 		USpatialActorChannel* Channel = NetDriver->GetActorChannelByEntityId(PendingAddComponent.EntityId);
 		if (Channel == nullptr)
 		{
@@ -283,7 +293,15 @@ void USpatialReceiver::OnAddComponent(const Worker_AddComponentOp& Op)
 	case SpatialConstants::GDK_DEBUG_COMPONENT_ID:
 		if (NetDriver->DebugCtx)
 		{
-			NetDriver->DebugCtx->OnDebugComponentUpdateReceived(Op.entity_id);
+			if (bInCriticalSection)
+			{
+				PendingAddComponents.AddUnique(
+					PendingAddComponentWrapper(Op.entity_id, Op.data.component_id, MakeUnique<DynamicComponent>(Op.data)));
+			}
+			else
+			{
+				NetDriver->DebugCtx->OnDebugComponentUpdateReceived(Op.entity_id);
+			}
 		}
 		return;
 	}

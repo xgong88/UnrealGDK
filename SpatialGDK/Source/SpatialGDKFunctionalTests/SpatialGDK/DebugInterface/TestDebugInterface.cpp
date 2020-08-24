@@ -82,6 +82,7 @@ void ATestDebugInterface::BeginPlay()
 			AReplicatedTestActorBase* Actor = World->SpawnActor<AReplicatedTestActorBase>(WorkerEntityPosition, FRotator());
 			USpatialGDKDebugInterface::AddTag(Actor, GetTestTag());
 			RegisterAutoDestroyActor(Actor);
+			TimeStampSpinning = FPlatformTime::Cycles64();
 		}
 
 		FinishStep();
@@ -90,6 +91,11 @@ void ATestDebugInterface::BeginPlay()
 	AddStep(TEXT("Wait for actor ready and add extra interest"), FWorkerDefinition::AllServers,
 		[this]() -> bool
 		{
+			if (double(FPlatformTime::Cycles64() - TimeStampSpinning) * FPlatformTime::GetSecondsPerCycle() < 2.0)
+			{
+				return false;
+			}
+
 			if (!bIsOnDefaultLayer)
 			{
 				return true;
@@ -114,7 +120,7 @@ void ATestDebugInterface::BeginPlay()
 
 			USpatialGDKDebugInterface::AddInterestOnTag(this, GetTestTag());
 			FinishStep();
-		}, nullptr, 5.0f);
+		}, nullptr, 10.0f);
 
 	AddStep(TEXT("Wait for extra actors"), FWorkerDefinition::AllServers,
 		[this]() -> bool
@@ -234,7 +240,7 @@ void ATestDebugInterface::BeginPlay()
 		[this]
 		{
 			FinishStep();
-		}, nullptr, 500.0f);
+		}, nullptr, 5.0f);
 
 	AddStep(TEXT("Add extra interest again"), FWorkerDefinition::AllServers, nullptr,
 		[this]()
@@ -299,7 +305,7 @@ void ATestDebugInterface::BeginPlay()
 				FinishStep();
 			}
 			
-		}, 500.0f);
+		}, 5.0f);
 
 	AddStep(TEXT("Add tag and remove delegation"), FWorkerDefinition::AllServers, nullptr,
 		[this]()

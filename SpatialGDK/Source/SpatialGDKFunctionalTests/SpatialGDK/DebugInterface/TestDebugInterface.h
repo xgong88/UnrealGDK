@@ -25,4 +25,5 @@ protected:
 	FVector WorkerEntityPosition;
 	bool bIsOnDefaultLayer = false;
 	int32 DelegationStep = 0;
+	int64 TimeStampSpinning;
 };

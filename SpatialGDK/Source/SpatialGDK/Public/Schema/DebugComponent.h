@@ -43,6 +43,10 @@ namespace SpatialGDK
 			Data.schema_type = Schema_CreateComponentUpdate();
 			Schema_Object* ComponentObject = Schema_GetComponentUpdateFields(Data.schema_type);
 			WriteToSchema(ComponentObject);
+			if (ActorTags.Num() == 0)
+			{
+				Schema_AddComponentUpdateClearedField(Data.schema_type, 2);
+			}
 
 			return Data;
 		}

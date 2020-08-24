@@ -142,13 +142,16 @@ void USpatialNetDriverDebugContext::OnDebugComponentUpdateReceived(Worker_Entity
 {
 	SpatialGDK::DebugComponent* DbgComp = NetDriver->StaticComponentView->GetComponentData<SpatialGDK::DebugComponent>(Entity);
 	check(DbgComp);
-	if (IsSetIntersectionEmpty(SemanticInterest, DbgComp->ActorTags))
+	if (!NetDriver->StaticComponentView->HasAuthority(Entity, SpatialConstants::GDK_DEBUG_COMPONENT_ID))
 	{
-		RemoveEntityToWatch(Entity);
-	}
-	else
-	{
-		AddEntityToWatch(Entity);
+		if (IsSetIntersectionEmpty(SemanticInterest, DbgComp->ActorTags))
+		{
+			RemoveEntityToWatch(Entity);
+		}
+		else
+		{
+			AddEntityToWatch(Entity);
+		}
 	}
 }
 
