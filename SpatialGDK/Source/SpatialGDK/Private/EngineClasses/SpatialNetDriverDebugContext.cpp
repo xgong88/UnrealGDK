@@ -1,4 +1,4 @@
-#include "SpatialNetDriverDebugContext.h"
+#include "EngineClasses/SpatialNetDriverDebugContext.h"
 
 #include "EngineClasses/SpatialNetDriver.h"
 #include "EngineClasses/SpatialPackageMapClient.h"
@@ -9,24 +9,24 @@
 
 namespace
 {
-	// Utility function, extracted from TSet<T>::Intersect
-	template <typename T>
-	bool IsSetIntersectionEmpty(const TSet<T>& Set1, const TSet<T>& Set2)
-	{
-		const bool b2Smaller = (Set1.Num() > Set2.Num());
-		const TSet<T>& A = (b2Smaller ? Set2 : Set1);
-		const TSet<T>& B = (b2Smaller ? Set1 : Set2);
+// Utility function, extracted from TSet<T>::Intersect
+template <typename T>
+bool IsSetIntersectionEmpty(const TSet<T>& Set1, const TSet<T>& Set2)
+{
+	const bool b2Smaller = (Set1.Num() > Set2.Num());
+	const TSet<T>& A = (b2Smaller ? Set2 : Set1);
+	const TSet<T>& B = (b2Smaller ? Set1 : Set2);
 
-		for (auto SetIt = A.CreateConstIterator(); SetIt; ++SetIt)
+	for (auto SetIt = A.CreateConstIterator(); SetIt; ++SetIt)
+	{
+		if (B.Contains(*SetIt))
 		{
-			if (B.Contains(*SetIt))
-			{
-				return false;
-			}
+			return false;
 		}
-		return true;
 	}
+	return true;
 }
+} // namespace
 
 void USpatialNetDriverDebugContext::EnableDebugSpatialGDK(USpatialNetDriver* NetDriver)
 {
@@ -293,8 +293,8 @@ TOptional<VirtualWorkerId> USpatialNetDriverDebugContext::GetActorHierarchyExpli
 	{
 		TOptional<VirtualWorkerId> ChildDelegation = GetActorHierarchyExplicitDelegation_Traverse(Child);
 		ensureMsgf(!CandidateDelegation.IsSet() || !ChildDelegation.IsSet() || CandidateDelegation.GetValue() == ChildDelegation.GetValue(),
-			TEXT("Inconsistent delegation. Actor %s is delegated to %i but a child is delegated to %i"),
-			*Actor->GetName(), CandidateDelegation.GetValue(), ChildDelegation.GetValue());
+				   TEXT("Inconsistent delegation. Actor %s is delegated to %i but a child is delegated to %i"), *Actor->GetName(),
+				   CandidateDelegation.GetValue(), ChildDelegation.GetValue());
 		CandidateDelegation = ChildDelegation;
 	}
 
@@ -333,8 +333,8 @@ TOptional<VirtualWorkerId> USpatialNetDriverDebugContext::GetActorExplicitDelega
 		if (VirtualWorkerId* Worker = SemanticDelegations.Find(Tag))
 		{
 			ensureMsgf(!CandidateDelegation.IsSet() || CandidateDelegation.GetValue() == *Worker,
-				TEXT("Inconsistent delegation. Actor %s delegated to both %i and %i"),
-				*Actor->GetName(), CandidateDelegation.GetValue(), *Worker);
+					   TEXT("Inconsistent delegation. Actor %s delegated to both %i and %i"), *Actor->GetName(),
+					   CandidateDelegation.GetValue(), *Worker);
 			CandidateDelegation = *Worker;
 		}
 	}

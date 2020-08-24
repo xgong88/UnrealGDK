@@ -416,14 +416,13 @@ void USpatialReceiver::OnRemoveComponent(const Worker_RemoveComponentOp& Op)
 
 	if (bInCriticalSection)
 	{
-		// Cancel out the Pending adds to avoid getting errors if an actor is not created for these components when leaving the critical section.
-		// Paired Add/Remove could happen, and processing the queued ops would happen too late to prevent it.
-		PendingAddComponents.RemoveAll([&Op](const PendingAddComponentWrapper& PendingAdd)
-		{
+		// Cancel out the Pending adds to avoid getting errors if an actor is not created for these components when leaving the critical
+		// section. Paired Add/Remove could happen, and processing the queued ops would happen too late to prevent it.
+		PendingAddComponents.RemoveAll([&Op](const PendingAddComponentWrapper& PendingAdd) {
 			return PendingAdd.EntityId == Op.entity_id && PendingAdd.ComponentId == Op.component_id;
 		});
 	}
-	
+
 	// We are queuing here because if an Actor is removed from your view, remove component ops will be
 	// generated and sent first, and then the RemoveEntityOp will be sent. In this case, we only want
 	// to delete the Actor and not delete the subobjects that the RemoveComponent relate to.
@@ -865,8 +864,7 @@ void USpatialReceiver::HandleActorAuthority(const Worker_AuthorityChangeOp& Op)
 		}
 	}
 
-	if (NetDriver->DebugCtx
-		&& Op.authority == WORKER_AUTHORITY_NOT_AUTHORITATIVE
+	if (NetDriver->DebugCtx && Op.authority == WORKER_AUTHORITY_NOT_AUTHORITATIVE
 		&& Op.component_id == SpatialConstants::GDK_DEBUG_COMPONENT_ID)
 	{
 		NetDriver->DebugCtx->OnDebugComponentAuthLost(Op.entity_id);

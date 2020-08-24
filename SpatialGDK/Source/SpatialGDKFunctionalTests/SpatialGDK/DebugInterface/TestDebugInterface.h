@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "SpatialFunctionalTest.h"
 #include "SpatialCommonTypes.h"
+#include "SpatialFunctionalTest.h"
 #include "TestDebugInterface.generated.h"
 
 UCLASS()
@@ -17,7 +17,6 @@ public:
 	virtual void BeginPlay() override;
 
 protected:
-
 	bool WaitToSeeActors(UClass* ActorClass, int32 NumActors);
 
 	TArray<VirtualWorkerId> Workers;

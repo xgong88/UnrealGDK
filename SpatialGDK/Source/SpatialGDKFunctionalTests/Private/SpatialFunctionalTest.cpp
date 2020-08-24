@@ -5,9 +5,11 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineClasses/SpatialNetDriver.h"
+#include "EngineClasses/SpatialNetDriverDebugContext.h"
 #include "EngineClasses/SpatialPackageMapClient.h"
 #include "GameFramework/PlayerController.h"
 #include "LoadBalancing/AbstractLBStrategy.h"
+#include "LoadBalancing/DebugLBStrategy.h"
 #include "LoadBalancing/LayeredLBStrategy.h"
 #include "Net/UnrealNetwork.h"
 #include "SpatialFunctionalTestAutoDestroyComponent.h"
@@ -520,3 +522,120 @@ void ASpatialFunctionalTest::DeleteActorsRegisteredForAutoDestroy()
 		}
 	}
 }
+
+namespace
+{
+	bool CheckDebuggingEnabled(const UWorld* World)
+	{
+		if (ensureMsgf(World != nullptr, TEXT("World is null")))
+		{
+			USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(World->GetNetDriver());
+			if (ensureMsgf(NetDriver, TEXT("Using SpatialFunctionalTest Debug facilities while the NetDriver is not Spatial")))
+			{
+				return ensureMsgf(NetDriver->DebugCtx != nullptr, TEXT("SpatialFunctionalTest Debug facilities are not enabled. Enable them in your map's world settings."));
+			}
+		}
+		return false;
+	}
+}
+
+ULayeredLBStrategy* ASpatialFunctionalTest::GetLoadBalancingStrategy()
+{
+	UWorld* World = GetWorld();
+	if (World == nullptr || !CheckDebuggingEnabled(World))
+	{
+		return nullptr;
+	}
+
+	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(World->GetNetDriver());
+	return Cast<ULayeredLBStrategy>(NetDriver->DebugCtx->DebugStrategy->GetWrappedStrategy());
+}
+
+void ASpatialFunctionalTest::AddDebugTag(AActor* Actor, FName Tag)
+{
+	UWorld* World = GetWorld();
+	if (Actor == nullptr || !CheckDebuggingEnabled(World))
+	{
+		return;
+	}
+
+	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(World->GetNetDriver());
+
+	NetDriver->DebugCtx->AddActorTag(Actor, Tag);
+}
+
+void ASpatialFunctionalTest::RemoveDebugTag(AActor* Actor, FName Tag)
+{
+	UWorld* World = GetWorld();
+	if (Actor == nullptr || !CheckDebuggingEnabled(World))
+	{
+		return;
+	}
+
+	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(World->GetNetDriver());
+
+	NetDriver->DebugCtx->RemoveActorTag(Actor, Tag);
+}
+
+void ASpatialFunctionalTest::AddInterestOnTag(FName Tag)
+{
+	UWorld* World = GetWorld();
+	if (World == nullptr || !CheckDebuggingEnabled(World))
+	{
+		return;
+	}
+
+	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(World->GetNetDriver());
+
+	NetDriver->DebugCtx->AddInterestOnTag(Tag);
+}
+
+void ASpatialFunctionalTest::RemoveInterestOnTag(FName Tag)
+{
+	UWorld* World = GetWorld();
+	if (World == nullptr || !CheckDebuggingEnabled(World))
+	{
+		return;
+	}
+
+	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(World->GetNetDriver());
+
+	NetDriver->DebugCtx->RemoveInterestOnTag(Tag);
+}
+
+void ASpatialFunctionalTest::KeepActorOnCurrentWorker(AActor* Actor)
+{
+	UWorld* World = GetWorld();
+	if (World == nullptr || !CheckDebuggingEnabled(World))
+	{
+		return;
+	}
+
+	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(World->GetNetDriver());
+	NetDriver->DebugCtx->KeepActorOnLocalWorker(Actor);
+}
+
+void ASpatialFunctionalTest::DelegateTagToWorker(FName Tag, int32 WorkerId)
+{
+	UWorld* World = GetWorld();
+	if (World == nullptr || !CheckDebuggingEnabled(World))
+	{
+		return;
+	}
+
+	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(World->GetNetDriver());
+	NetDriver->DebugCtx->DelegateTagToWorker(Tag, WorkerId);
+}
+
+void ASpatialFunctionalTest::ClearTagDelegationAndInterest()
+{
+	UWorld* World = GetWorld();
+	if (World == nullptr || !CheckDebuggingEnabled(World))
+	{
+		return;
+	}
+
+	USpatialNetDriver* NetDriver = Cast<USpatialNetDriver>(World->GetNetDriver());
+	NetDriver->DebugCtx->Reset();
+}
+

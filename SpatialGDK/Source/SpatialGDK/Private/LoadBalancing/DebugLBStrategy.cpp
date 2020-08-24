@@ -4,7 +4,6 @@
 
 #include "EngineClasses/SpatialNetDriverDebugContext.h"
 #include "EngineClasses/SpatialWorldSettings.h"
-#include "Utils/DebugInterface.h"
 
 DEFINE_LOG_CATEGORY(LogDebugLBStrategy);
 
@@ -35,7 +34,7 @@ bool UDebugLBStrategy::ShouldHaveAuthority(const AActor& Actor) const
 	check(WrappedStrategy);
 
 	TOptional<VirtualWorkerId> WorkerId = DebugCtx->GetActorHierarchyExplicitDelegation(&Actor);
-	if(WorkerId)
+	if (WorkerId)
 	{
 		return *WorkerId == GetLocalVirtualWorkerId();
 	}
@@ -52,7 +51,7 @@ VirtualWorkerId UDebugLBStrategy::WhoShouldHaveAuthority(const AActor& Actor) co
 	{
 		return *WorkerId;
 	}
-	
+
 	return WrappedStrategy->WhoShouldHaveAuthority(Actor);
 }
 
@@ -93,4 +92,3 @@ void UDebugLBStrategy::SetVirtualWorkerIds(const VirtualWorkerId& FirstVirtualWo
 	check(WrappedStrategy);
 	WrappedStrategy->SetVirtualWorkerIds(FirstVirtualWorkerId, LastVirtualWorkerId);
 }
-

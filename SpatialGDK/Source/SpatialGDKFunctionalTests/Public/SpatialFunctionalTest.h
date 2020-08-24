@@ -22,6 +22,8 @@ constexpr int SPATIAL_FUNCTIONAL_TEST_NOT_STARTED = -1; // represents test waiti
 constexpr int SPATIAL_FUNCTIONAL_TEST_FINISHED = -2;	// represents test already ran
 } // namespace
 
+class ULayeredLBStrategy;
+
 /*
  * A Spatial Functional NetTest allows you to define a series of steps, and control which server/client context they execute on
  * Servers and Clients are registered as Test Players by the framework, and request individual steps to be executed in the correct Player
@@ -164,6 +166,29 @@ public:
 	UFUNCTION(BlueprintPure, meta = (ToolTip = "Returns a Worker Defnition that represents all of the Clients"),
 			  Category = "Spatial Functional Test")
 	FWorkerDefinition GetAllClients() { return FWorkerDefinition::AllClients; }
+
+	ULayeredLBStrategy* GetLoadBalancingStrategy();
+
+	UFUNCTION(BlueprintCallable, Category = "Spatial Functional Test")
+	void AddDebugTag(AActor* Actor, FName Tag);
+
+	UFUNCTION(BlueprintCallable, Category = "Spatial Functional Test")
+	void RemoveDebugTag(AActor* Actor, FName Tag);
+
+	UFUNCTION(BlueprintCallable, Category = "Spatial Functional Test")
+	void AddInterestOnTag(FName Tag);
+
+	UFUNCTION(BlueprintCallable, Category = "Spatial Functional Test")
+	void RemoveInterestOnTag(FName Tag);
+
+	UFUNCTION(BlueprintCallable, Category = "Spatial Functional Test")
+	void KeepActorOnCurrentWorker(AActor* Actor);
+
+	UFUNCTION(BlueprintCallable, Category = "Spatial Functional Test")
+	void DelegateTagToWorker(FName Tag, int32 WorkerId);
+
+	UFUNCTION(BlueprintCallable, Category = "Spatial Functional Test")
+	void ClearTagDelegationAndInterest();
 
 protected:
 	void SetNumRequiredClients(int NewNumRequiredClients) { NumRequiredClients = FMath::Max(NewNumRequiredClients, 0); }
